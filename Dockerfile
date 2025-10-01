@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 9000
 
 # Start with migrations and then the development server
-CMD ["./start.sh"]
+CMD ["sh", "./start.sh"]
