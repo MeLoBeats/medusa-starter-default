@@ -17,4 +17,13 @@ export default defineConfig({
       sslmode: "disable",
     },
   },
+  admin: {
+    backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
+    vite: () => ({
+      server: {
+        host: "0.0.0.0",
+        allowedHosts: ["store.noktra.studio", "localhost", ".localhost"],
+      },
+    }),
+  },
 });
