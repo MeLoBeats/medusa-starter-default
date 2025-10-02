@@ -64,7 +64,12 @@ echo "================================================"
 echo "Starting Medusa in ${MEDUSA_WORKER_MODE} mode..."
 echo "================================================"
 
-cd /app/.medusa/server
+# Choose working directory dynamically
+if [ -d "/app/.medusa/server" ]; then
+    cd /app/.medusa/server
+elif [ -d "/server" ]; then
+    cd /server
+fi
 
 # Start the application
 exec npm run start
