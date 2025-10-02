@@ -54,7 +54,7 @@ echo "Running database migrations..."
 npx medusa db:migrate
 
 echo "Syncing database links..."
-npx medusa links:sync
+npx medusa db:sync-links
 
 # ===========================================
 # Start Medusa Application
