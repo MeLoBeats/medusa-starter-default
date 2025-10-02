@@ -69,8 +69,8 @@ COPY --chown=medusa:medusa --from=builder /app/medusa-config.* ./
 COPY --chown=medusa:medusa --from=builder /app/dist ./dist
 COPY --chown=medusa:medusa --from=builder /app/uploads ./uploads
 
-# Copy .medusa directory if it exists (Medusa V2+)
-COPY --chown=medusa:medusa --from=builder /app/.medusa ./.medusa 2>/dev/null || true
+# Copy .medusa directory (Medusa V2+)
+COPY --chown=medusa:medusa --from=builder /app/.medusa/ ./.medusa/
 
 # Ensure .medusa directory exists and has correct permissions
 RUN mkdir -p /app/.medusa && \
