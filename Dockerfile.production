@@ -17,16 +17,29 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Create directories that might not exist
-RUN mkdir -p dist uploads
+# Create directories that might not exist and set permissions
+RUN mkdir -p dist uploads .medusa && \
+    chmod -R 755 .medusa
 
 # Build Medusa application
-# This creates the .medusa/server directory with compiled code
 RUN npm run build
 
-# Install production dependencies in the build output
-WORKDIR /app/.medusa/server
-RUN npm ci --omit=dev --ignore-scripts
+# Debug: List what was created
+RUN echo "=== Build output ===" && \
+    ls -la /app/ && \
+    echo "=== Checking .medusa ===" && \
+    ls -la /app/.medusa/ 2>/dev/null || echo ".medusa directory not found" && \
+    echo "=== Checking dist ===" && \
+    ls -la /app/dist/ 2>/dev/null || echo "dist directory not found"
+
+# Install production dependencies
+# Medusa V2 might put build output in different location
+WORKDIR /app
+RUN if [ -d ".medusa/server" ]; then \
+    cd .medusa/server && npm ci --omit=dev; \
+    else \
+    npm ci --omit=dev; \
+    fi
 
 # ==========================================
 # Stage 2: Runtime - Production image
@@ -53,9 +66,11 @@ WORKDIR /app
 COPY --chown=medusa:medusa --from=builder /app/package.json ./
 COPY --chown=medusa:medusa --from=builder /app/node_modules ./node_modules
 COPY --chown=medusa:medusa --from=builder /app/medusa-config.* ./
-COPY --chown=medusa:medusa --from=builder /app/.medusa/server ./.medusa/server
 COPY --chown=medusa:medusa --from=builder /app/dist ./dist
 COPY --chown=medusa:medusa --from=builder /app/uploads ./uploads
+
+# Copy .medusa directory if it exists (Medusa V2+)
+COPY --chown=medusa:medusa --from=builder /app/.medusa ./.medusa 2>/dev/null || true
 
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/uploads && \

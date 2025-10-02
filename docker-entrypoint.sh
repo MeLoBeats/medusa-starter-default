@@ -54,7 +54,7 @@ echo "Running database migrations..."
 npx medusa db:migrate
 
 echo "Syncing database links..."
-npx medusa db:sync-links
+npx medusa links:sync
 
 # ===========================================
 # Start Medusa Application
@@ -64,11 +64,16 @@ echo "================================================"
 echo "Starting Medusa in ${MEDUSA_WORKER_MODE} mode..."
 echo "================================================"
 
-# Choose working directory dynamically
+# Check where the built files are
 if [ -d "/app/.medusa/server" ]; then
+    echo "Using .medusa/server directory"
     cd /app/.medusa/server
-elif [ -d "/server" ]; then
-    cd /server
+elif [ -d "/app/dist" ]; then
+    echo "Using dist directory"
+    cd /app/dist
+else
+    echo "Starting from /app root directory"
+    cd /app
 fi
 
 # Start the application
