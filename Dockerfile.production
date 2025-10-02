@@ -1,0 +1,80 @@
+# ==========================================
+# Stage 1: Builder - Build Medusa application
+# ==========================================
+FROM node:20-alpine AS builder
+
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++ git
+
+WORKDIR /app
+
+# Copy package files for dependency installation
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build Medusa application
+# This creates the .medusa/server directory with compiled code
+RUN npm run build
+
+# Install production dependencies in the build output
+WORKDIR /app/.medusa/server
+RUN npm ci --omit=dev --ignore-scripts
+
+# ==========================================
+# Stage 2: Runtime - Production image
+# ==========================================
+FROM node:20-alpine AS runtime
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    curl \
+    dumb-init \
+    tini
+
+# Environment variables
+ENV NODE_ENV=production \
+    PORT=9000 \
+    LOG_LEVEL=info
+
+# Create non-root user
+RUN addgroup -S medusa && \
+    adduser -S medusa -G medusa
+
+WORKDIR /app
+
+# Copy application files from builder
+COPY --chown=medusa:medusa --from=builder /app/package.json ./
+COPY --chown=medusa:medusa --from=builder /app/node_modules ./node_modules
+COPY --chown=medusa:medusa --from=builder /app/medusa-config.* ./
+COPY --chown=medusa:medusa --from=builder /app/.medusa/server ./.medusa/server
+
+# Copy optional directories if they exist
+COPY --chown=medusa:medusa --from=builder /app/dist ./dist
+COPY --chown=medusa:medusa --from=builder /app/uploads ./uploads
+
+# Create uploads directory with proper permissions
+RUN mkdir -p /app/uploads && \
+    chown -R medusa:medusa /app/uploads
+
+# Copy entrypoint script
+COPY --chown=medusa:medusa docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Switch to non-root user
+USER medusa
+
+# Expose Medusa port
+EXPOSE 9000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Use tini as init system for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/app/docker-entrypoint.sh"]
