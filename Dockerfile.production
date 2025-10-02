@@ -17,6 +17,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Create directories that might not exist
+RUN mkdir -p dist uploads
+
 # Build Medusa application
 # This creates the .medusa/server directory with compiled code
 RUN npm run build
@@ -52,8 +55,6 @@ COPY --chown=medusa:medusa --from=builder /app/package.json ./
 COPY --chown=medusa:medusa --from=builder /app/node_modules ./node_modules
 COPY --chown=medusa:medusa --from=builder /app/medusa-config.* ./
 COPY --chown=medusa:medusa --from=builder /app/.medusa/server ./.medusa/server
-
-# Copy optional directories if they exist
 COPY --chown=medusa:medusa --from=builder /app/dist ./dist
 COPY --chown=medusa:medusa --from=builder /app/uploads ./uploads
 
