@@ -4,10 +4,12 @@ services:
     image: postgres:15-alpine
     container_name: medusa_postgres
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: ${DB_NAME:-medusa-store}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -15,7 +17,7 @@ services:
     networks:
       - medusa_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,7 +37,28 @@ services:
       timeout: 5s
       retries: 5
 
-  # Medusa Server
+  medusa-migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: medusa_migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_TYPE=postgres
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USERNAME=${DB_USER}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_NAME=${DB_NAME}
+    env_file:
+      - .env
+    command: npx medusa db:migrate
+    networks:
+      - medusa_network
+
+  # Service principal
   medusa:
     build:
       context: .
@@ -43,26 +66,26 @@ services:
     container_name: medusa_backend
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      medusa-migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
       - "9000:9000"
     environment:
-      - NODE_ENV=production  # ← IMPORTANT: mode production
-      - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-medusa-store}
+      - NODE_ENV=production
+      - DATABASE_TYPE=postgres
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USERNAME=${DB_USER}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_NAME=${DB_NAME}
       - REDIS_URL=redis://redis:6379
       - PORT=9000
-      - MEDUSA_WORKER_MODE=server
     env_file:
       - .env
     networks:
       - medusa_network
-    # RETIRE les volumes pour la production
-    # volumes:
-    #   - .:/app
-    #   - /app/node_modules
 
 volumes:
   postgres_data:

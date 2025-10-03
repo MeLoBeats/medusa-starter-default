@@ -1,101 +1,35 @@
-# ==========================================
-# Stage 1: Builder - Build Medusa application
-# ==========================================
-FROM node:20-alpine AS builder
-
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++ git
+# Stage 1: Build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files for dependency installation
-COPY package.json package-lock.json* ./
+# Copier les fichiers de config
+COPY package*.json ./
+COPY medusa-config.ts ./
+COPY tsconfig.json ./
 
-# Install all dependencies (including devDependencies for build)
+# Installer toutes les dépendances
 RUN npm ci
 
-# Copy source code
+# Copier le code source
 COPY . .
 
-# Create directories that might not exist and set permissions
-RUN mkdir -p dist uploads .medusa && \
-    chmod -R 755 .medusa
+# Créer le build Medusa
+RUN npx medusa build
 
-# Build Medusa application
-RUN npm run build
-
-# Debug: List what was created
-RUN echo "=== Build output ===" && \
-    ls -la /app/ && \
-    echo "=== Checking .medusa ===" && \
-    ls -la /app/.medusa/ 2>/dev/null || echo ".medusa directory not found" && \
-    echo "=== Checking dist ===" && \
-    ls -la /app/dist/ 2>/dev/null || echo "dist directory not found"
-
-# Install production dependencies
-# Medusa V2 might put build output in different location
-WORKDIR /app
-RUN if [ -d ".medusa/server" ]; then \
-    cd .medusa/server && npm ci --omit=dev; \
-    else \
-    npm ci --omit=dev; \
-    fi
-
-# ==========================================
-# Stage 2: Runtime - Production image
-# ==========================================
-FROM node:20-alpine AS runtime
-
-# Install runtime dependencies
-RUN apk add --no-cache \
-    curl \
-    dumb-init
-
-# Environment variables
-ENV NODE_ENV=production \
-    PORT=9000 \
-    LOG_LEVEL=info
-
-# Create non-root user
-RUN addgroup -S medusa && \
-    adduser -S medusa -G medusa
+# Stage 2: Production
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy application files from builder
-COPY --chown=medusa:medusa --from=builder /app/package.json ./
-COPY --chown=medusa:medusa --from=builder /app/node_modules ./node_modules
-COPY --chown=medusa:medusa --from=builder /app/medusa-config.* ./
-COPY --chown=medusa:medusa --from=builder /app/dist ./dist
-COPY --chown=medusa:medusa --from=builder /app/uploads ./uploads
+# Copier le build depuis .medusa/server
+COPY --from=build /app/.medusa/server ./
 
-# Copy .medusa directory (Medusa V2+)
-COPY --chown=medusa:medusa --from=builder /app/.medusa/ ./.medusa/
+# Installer les dépendances de production
+RUN npm ci --omit=dev
 
-# Ensure .medusa directory exists and has correct permissions
-RUN mkdir -p /app/.medusa && \
-    chown -R medusa:medusa /app/.medusa && \
-    chmod -R 755 /app/.medusa
+ENV NODE_ENV=production
 
-# Create uploads directory with proper permissions
-RUN mkdir -p /app/uploads && \
-    chown -R medusa:medusa /app/uploads
-
-# Switch to root temporarily to copy and set permissions
-USER root
-
-# Copy entrypoint script
-COPY --chown=medusa:medusa --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
-
-# Switch to non-root user
-USER medusa
-
-# Expose Medusa port
 EXPOSE 9000
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
-
-# Use dumb-init for proper signal handling, then execute script with sh
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/bin/sh", "/app/docker-entrypoint.sh"]
+CMD ["npm", "run", "start"]
