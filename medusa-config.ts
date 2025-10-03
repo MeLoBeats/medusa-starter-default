@@ -35,7 +35,7 @@ export default defineConfig({
     },
   ],
   admin: {
-    backendUrl: process.env.MEDUSA_BACKEND_URL || "http://localhost:9000",
+    backendUrl: process.env.MEDUSA_BACKEND_URL || "https://store.noktra.studio",
     vite: () => ({
       server: {
         host: "0.0.0.0",
