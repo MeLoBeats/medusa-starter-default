@@ -47,6 +47,8 @@ export default defineConfig({
               region: process.env.S3_REGION,
               bucket: process.env.S3_BUCKET,
               endpoint: process.env.S3_ENDPOINT,
+              s3ForcePathStyle: true, // Important pour R2
+              signatureVersion: "v4",
             },
           },
         ],
